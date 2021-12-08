@@ -1,12 +1,11 @@
 turtles-own [
   speed
-  friends
-  foes
-  neighbours
   lp
-  nearest-foe
-  hit-radius
-  hit-strength
+  neighbours
+]
+
+patches-own [
+  corpses
 ]
 
 globals [
@@ -16,17 +15,13 @@ globals [
   red-avg-y
 ]
 
-patches-own [
-  corpses
-]
-
 to setup
   clear-all
   ;; random-seed 2021
-  create-turtles red-turtles [
+  create-turtles turtles-per-fraction [
     setup-turtle red
   ]
-  create-turtles blue-turtles [
+  create-turtles turtles-per-fraction [
     setup-turtle blue
   ]
   ask patches[
@@ -36,34 +31,21 @@ to setup
   reset-ticks
 end
 
+
 to setup-turtle [fraction]
   ifelse fraction = red [
-    setxy random-xcor random-range (min-pycor * 0.7) min-pycor
-    ifelse hit-radius-distr
-    [ set hit-radius hit-radius-sum / red-turtles ]
-    [ set hit-radius hit-radius-sum / 100 ]
-    ifelse hit-strength-distr
-    [ set hit-strength hit-strength-sum / red-turtles ]
-    [ set hit-strength hit-strength-sum / 100 ]
+    setxy random-xcor random-range (min-pycor * spawn-separation) min-pycor
   ] [
-    setxy random-xcor random-range (max-pycor * 0.7) max-pycor
-    ifelse hit-radius-distr
-    [ set hit-radius hit-radius-sum / blue-turtles ]
-    [ set hit-radius hit-radius-sum / 100 ]
-    ifelse hit-strength-distr
-    [ set hit-strength hit-strength-sum / blue-turtles ]
-    [ set hit-strength hit-strength-sum / 100 ]
+    setxy random-xcor random-range (max-pycor * spawn-separation) max-pycor
   ]
   set lp 10
   set color fraction
   set size 1
-  set speed normal-speed
+  set speed 0
   ;set speed random-float 0.1
 end
 
-
 to go
-  ; Find global directions for Blue and Red to go?
   let blue-s turtles with [color = blue]
   let red-s turtles with [color = red]
   if not any? blue-s [
@@ -83,95 +65,61 @@ to go
   set blue-avg-y mean [ycor] of blue-s
   set red-avg-x mean [xcor] of red-s
   set red-avg-y mean [ycor] of red-s
-  ask turtles [
-    turtle-go
-  ]
-  tick
+  ask turtles [ go-turtles ]
 end
 
-to-report my-function [args]
-
-  report args * 2
-end
-
-to turtle-go
+to go-turtles
   find-friends-foes
-  ifelse any? foes [
-    ;; Zumindest Feinde gesehen
-    set nearest-foe min-one-of foes [distance myself]
-    set speed speed-towards-foe
-    engage-foe nearest-foe
-    set size 1.2
-  ] [
-    set speed min list normal-speed speed + accel
-    ifelse any? friends [
-      ;; Nur Freunde gesehen
-      set size 1
-      ;align-with friends
-      ;cohere
-    ][
-      ;; Weder freund noch feind in sicht
-      set size 0.8
-    ]
-    towards-battle
-    separate neighbours
-    ;wiggle
-    fd speed
+  let nearest nobody
+  let dist 999999
+  let col 0
+  if any? neighbours [
+    set nearest min-one-of neighbours [distance myself]
+    set dist distance nearest
+    set col [color] of nearest
   ]
-end
-
-to find-friends-foes  ;; turtle procedure
-  let _mycolor color
-  set neighbours other turtles in-radius vision
-  set friends neighbours with [color = _mycolor]
-  set foes neighbours with [color != _mycolor]
+  (ifelse
+  ; ATTACK: if foe close enough, stand & attack
+    dist < hit-radius and col != color [
+      set size 1.2
+      ask nearest [ be-hit hit-strength ]
+    ]
+  ; SEPARATE: if anyone too close, move away
+    dist < separate-radius [
+      set size 1.2
+      set heading subtract-headings towards nearest 180
+      wiggle
+      fd max-speed
+    ]
+  ; COHERE: if any friend visible, go there
+  ; ENGAGE: if any foe visible, go there,
+    dist > cohere-radius [
+      set size 1.0
+      set heading towards nearest
+      wiggle
+      fd max-speed
+    ]
+  ; ALIGN: if any friend close enough, rotate along
+  ; PROGRESS: go towards foe avg position
+    [
+      set size 0.8
+      ifelse color = blue
+      [ facexy red-avg-x red-avg-y ]
+      [ facexy blue-avg-x blue-avg-y ]
+      wiggle
+      fd max-speed
+    ]
+  )
 end
 
 to wiggle  ;; turtle procedure
-  rt random 10
-  lt random 10
+  rt random wiggle-amount
+  lt random wiggle-amount
   if not can-move? 2 [ rt 180 ]
 end
 
-to towards-battle
-  if engage-towards-battle[
-    ifelse color = blue [
-      facexy red-avg-x red-avg-y
-      ;set heading 180
-    ][
-      facexy blue-avg-x blue-avg-y
-      ;set heading 0
-    ]
-  ]
-end
-
-to engage-foe [foe]
-  let dist distance foe
-  ifelse dist < hit-radius [
-    ; hit
-    let my-hit-strength hit-strength
-    ask foe [ be-hit my-hit-strength ]
-  ][
-    turn-towards (heading-towards foe) max-turn
-    separate neighbours
-    fd speed-towards-foe
-  ]
-end
-
-to separate [agentset]
-  let nearest min-one-of agentset [distance myself]
-  if nearest != nobody [
-    let dist distance nearest
-    ifelse dist < separate-radius [
-      turn-away (towards nearest) separate-turn
-      set speed max list (speed - slowdown) 0
-    ]
-    [ cohere ]
-  ]
-end
-
-to be-hit [hit]
-  set lp lp - hit
+to be-hit [strength]
+  set lp lp - strength
   if lp <= 0 [
     set corpses corpses + 1
     recolor-patch
@@ -187,70 +135,15 @@ to recolor-patch ; patch procedure
   ]
 end
 
-;;; COHERE
+to step-away [agent]
 
-to cohere  ;; turtle procedure
-
-  turn-towards average-heading-towards friends max-turn
 end
 
-;;; ALIGN
-
-to align-with [agentset]  ;; turtle procedure
-  turn-towards average-heading agentset max-turn
-end
-
-to-report average-heading [agentset]  ;; turtle procedure
-  ;; We can't just average the heading variables here.
-  ;; For example, the average of 1 and 359 should be 0,
-  ;; not 180.  So we have to use trigonometry.
-  let x-component sum [dx] of agentset
-  let y-component sum [dy] of agentset
-  ifelse x-component = 0 and y-component = 0
-    [ report heading ]
-    [ report atan x-component y-component ]
-end
-
-;;; HELPER PROCEDURES
-
-to-report average-heading-towards [agentset]  ;; turtle procedure
-  ;; "towards myself" gives us the heading from the other turtle
-  ;; to me, but we want the heading from me to the other turtle,
-  ;; so we add 180
-  let x-component mean [sin (towards myself + 180)] of agentset
-  let y-component mean [cos (towards myself + 180)] of agentset
-  ifelse x-component = 0 and y-component = 0
-    [ report heading ]
-    [ report atan x-component y-component ]
-end
-
-to-report heading-towards [othr]  ;; turtle procedure
-  ;; "towards myself" gives us the heading from the other turtle
-  ;; to me, but we want the heading from me to the other turtle,
-  ;; so we add 180
-  let x-component [sin (towards myself + 180)] of othr
-  let y-component [cos (towards myself + 180)] of othr
-  ifelse x-component = 0 and y-component = 0
-    [ report heading ]
-    [ report atan x-component y-component ]
-end
-
-to turn-towards [new-heading maxturn]  ;; turtle procedure
-  turn-at-most (subtract-headings new-heading heading) maxturn
-end
-
-to turn-away [new-heading maxturn]  ;; turtle procedure
-  turn-at-most (subtract-headings heading new-heading) maxturn
-end
-
-;; turn right by "turn" degrees (or left if "turn" is negative),
-;; but never turn more than "max-turn" degrees
-to turn-at-most [turn maxturn]  ;; turtle procedure
-  ifelse abs turn > maxturn
-    [ ifelse turn > 0
-        [ rt max-turn ]
-        [ lt max-turn ] ]
-    [ rt turn ]
+to find-friends-foes  ;; turtle procedure
+  ;let _mycolor color
+  set neighbours other turtles in-radius vision
+  ;set friends neighbours with [color = _mycolor]
+  ;set foes neighbours with [color != _mycolor]
 end
 
 
@@ -260,13 +153,13 @@ to-report random-range [minval maxval]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-427
-13
-825
-790
+210
+10
+647
+448
 -1
 -1
-11.82
+13.0
 1
 10
 1
@@ -278,21 +171,21 @@ GRAPHICS-WINDOW
 1
 -16
 16
--32
-32
-1
-1
+-16
+16
+0
+0
 1
 ticks
 30.0
 
 BUTTON
 30
-22
+31
 103
-55
+64
 NIL
-setup\n
+setup
 NIL
 1
 T
@@ -304,10 +197,10 @@ NIL
 1
 
 BUTTON
-106
-22
-169
-55
+114
+31
+177
+64
 NIL
 go
 T
@@ -321,229 +214,156 @@ NIL
 1
 
 SLIDER
-16
-109
-188
-142
-vision
-vision
-0
 10
-10.0
-0.5
-1
-NIL
-HORIZONTAL
-
-SLIDER
-15
-146
-187
-179
-max-turn
-max-turn
-0
-360
-21.1
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-16
-278
-188
-311
-red-turtles
-red-turtles
-0
-300
-48.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-205
-278
-377
-311
-blue-turtles
-blue-turtles
-0
-300
-48.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-15
-336
-187
-369
-hit-radius-sum
-hit-radius-sum
-0
-1000
-83.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-16
-72
-188
-105
-normal-speed
-normal-speed
-0
-0.1
-0.1
-0.001
-1
-NIL
-HORIZONTAL
-
-SLIDER
-202
-337
-379
-370
-hit-strength-sum
-hit-strength-sum
-0
-1000
-18.5
-0.1
-1
-NIL
-HORIZONTAL
-
-SWITCH
-15
-369
-177
-402
-hit-radius-distr
-hit-radius-distr
-1
-1
--1000
-
-SWITCH
-202
-370
-381
-403
-hit-strength-distr
-hit-strength-distr
-1
-1
--1000
-
-SLIDER
-197
-71
-389
-104
-speed-towards-foe
-speed-towards-foe
-0
-0.1
-0.054
-0.001
-1
-NIL
-HORIZONTAL
-
-SLIDER
-198
-110
-370
 143
-separate-radius
-separate-radius
+203
+176
+spawn-separation
+spawn-separation
 0
+1.0
+0.69
+0.01
+1
+NIL
+HORIZONTAL
+
+TEXTBOX
+11
+86
+202
+116
+Setup ________________________
+12
+0.0
+1
+
+SLIDER
 10
-3.8
+106
+203
+139
+turtles-per-fraction
+turtles-per-fraction
+0
+300
+100.0
+1
+1
+NIL
+HORIZONTAL
+
+TEXTBOX
+13
+232
+198
+250
+Runtime _____________________
+12
+0.0
+1
+
+SLIDER
+11
+253
+200
+286
+max-speed
+max-speed
+0
+0.1
+0.022
+0.001
+1
+NIL
+HORIZONTAL
+
+SLIDER
+6
+460
+197
+493
+hit-strength
+hit-strength
+0
+2
+0.091
+0.001
+1
+NIL
+HORIZONTAL
+
+SLIDER
+5
+502
+198
+535
+hit-radius
+hit-radius
+0
+20
+1.1
 0.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-43
-459
-215
-492
-separate-turn
-separate-turn
+12
+294
+184
+327
+separate-radius
+separate-radius
 0
-100
-27.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-44
-500
-216
-533
-align-turn
-align-turn
-0
-100
-50.0
-1
-1
-NIL
-HORIZONTAL
-
-SWITCH
-15
-408
-236
-441
-engage-towards-battle
-engage-towards-battle
-0
-1
--1000
-
-SLIDER
-201
-149
-387
-182
-accel
-accel
-0
+5
+0.99
 0.01
-0.008
-0.0001
 1
 NIL
 HORIZONTAL
 
 SLIDER
-201
-193
-373
-226
-slowdown
-slowdown
+9
+396
+181
+429
+vision
+vision
 0
-0.01
-0.0026
-0.0001
+20
+5.4
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+12
+333
+184
+366
+cohere-radius
+cohere-radius
+0
+5
+1.8
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+6
+561
+178
+594
+wiggle-amount
+wiggle-amount
+0
+40
+17.1
+0.1
 1
 NIL
 HORIZONTAL

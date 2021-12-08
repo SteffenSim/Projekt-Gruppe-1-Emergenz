@@ -2,14 +2,18 @@ turtles-own [
   speed
   friends
   foes
+  neighbours
   lp
-  hit-radius
   nearest-foe
+  hit-radius
+  hit-strength
 ]
 
 globals [
-  blue-avg
-  red-avg
+  blue-avg-x
+  blue-avg-y
+  red-avg-x
+  red-avg-y
 ]
 
 patches-own [
@@ -27,69 +31,117 @@ to setup
   ]
   ask patches[
     set corpses 0
-    recolor-patch
+    set pcolor white
   ]
   reset-ticks
 end
 
 to setup-turtle [fraction]
-  ifelse fraction = red
-  [ setxy random-xcor random-range (min-pxcor * 0.5) min-pxcor ]
-  [ setxy random-xcor random-range (max-pxcor * 0.5) max-pxcor ]
+  ifelse fraction = red [
+    setxy random-xcor random-range (min-pycor * 0.7) min-pycor
+    ifelse hit-radius-distr
+    [ set hit-radius hit-radius-sum / red-turtles ]
+    [ set hit-radius hit-radius-sum / 100 ]
+    ifelse hit-strength-distr
+    [ set hit-strength hit-strength-sum / red-turtles ]
+    [ set hit-strength hit-strength-sum / 100 ]
+  ] [
+    setxy random-xcor random-range (max-pycor * 0.7) max-pycor
+    ifelse hit-radius-distr
+    [ set hit-radius hit-radius-sum / blue-turtles ]
+    [ set hit-radius hit-radius-sum / 100 ]
+    ifelse hit-strength-distr
+    [ set hit-strength hit-strength-sum / blue-turtles ]
+    [ set hit-strength hit-strength-sum / 100 ]
+  ]
   set lp 10
-  set hit-radius 1
   set color fraction
   set size 1
-  set speed random-float 1.0
+  set speed normal-speed
+  ;set speed random-float 0.1
 end
 
-to find-friends-foes  ;; turtle procedure
-  let _mycolor color
-  set friends other turtles in-radius vision with [color = _mycolor]
-  set foes other turtles in-radius vision with [color != _mycolor]
-end
 
 to go
   ; Find global directions for Blue and Red to go?
+  let blue-s turtles with [color = blue]
+  let red-s turtles with [color = red]
+  if not any? blue-s [
+    ifelse any? red-s [
+      print "Red Wins!"
+    ] [
+      print "All dead"
+    ]
+    stop
+  ]
+  if not any? red-s [
+    print "Blue Wins!"
+    print "All dead"
+    stop
+  ]
+  set blue-avg-x mean [xcor] of blue-s
+  set blue-avg-y mean [ycor] of blue-s
+  set red-avg-x mean [xcor] of red-s
+  set red-avg-y mean [ycor] of red-s
   ask turtles [
     turtle-go
   ]
   tick
 end
 
+to-report my-function [args]
+
+  report args * 2
+end
+
 to turtle-go
   find-friends-foes
   ifelse any? foes [
+    ;; Zumindest Feinde gesehen
     set nearest-foe min-one-of foes [distance myself]
+    set speed speed-towards-foe
     engage-foe nearest-foe
-    set size 2
+    set size 1.2
   ] [
+    set speed normal-speed
     ifelse any? friends [
+      ;; Nur Freunde gesehen
       set size 1
-      align-with friends
-      ;turn-towards average-heading-towards foes max-turn * 0.5
+      ;align-with friends
+      ;cohere
     ][
-      set size 0.5
-      ;turn-towards average-heading-towards foes max-turn * 0.5
+      ;; Weder freund noch feind in sicht
+      set size 0.8
     ]
     towards-battle
-    wiggle
+    separate neighbours
+    ;wiggle
     fd speed
   ]
 end
 
+to find-friends-foes  ;; turtle procedure
+  let _mycolor color
+  set neighbours other turtles in-radius vision
+  set friends neighbours with [color = _mycolor]
+  set foes neighbours with [color != _mycolor]
+end
 
 to wiggle  ;; turtle procedure
-  rt random 30
-  lt random 30
+  rt random 10
+  lt random 10
   if not can-move? 2 [ rt 180 ]
 end
 
 to towards-battle
-  ifelse color = blue [
-    turn-towards 180 max-turn * 0.5
-  ][
-    turn-towards 0 max-turn * 0.5
+  if engage-towards-battle[
+    ifelse color = blue [
+      facexy red-avg-x red-avg-y
+      ;set heading 180
+    ][
+      facexy blue-avg-x blue-avg-y
+      ;set heading 0
+    ]
   ]
 end
 
@@ -97,10 +149,22 @@ to engage-foe [foe]
   let dist distance foe
   ifelse dist < hit-radius [
     ; hit
-    ask foe [ be-hit 1 ]
+    let my-hit-strength hit-strength
+    ask foe [ be-hit my-hit-strength ]
   ][
-    turn-towards heading-towards foe max-turn
-    fd speed
+    turn-towards (heading-towards foe) max-turn
+    separate neighbours
+    fd speed-towards-foe
+  ]
+end
+
+to separate [agentset]
+  let nearest min-one-of agentset [distance myself]
+  if nearest != nobody [
+    let dist distance nearest
+    ifelse dist < separate-radius [
+      turn-away (towards nearest) separate-turn ]
+    [ cohere ]
   ]
 end
 
@@ -117,8 +181,15 @@ to recolor-patch ; patch procedure
   ifelse corpses = 0 [
     set pcolor white
   ] [
-    set pcolor 40 - min list corpses 10
+    set pcolor 40 - min list (corpses * 0.2) 10
   ]
+end
+
+;;; COHERE
+
+to cohere  ;; turtle procedure
+
+  turn-towards average-heading-towards friends max-turn
 end
 
 ;;; ALIGN
@@ -187,13 +258,13 @@ to-report random-range [minval maxval]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-213
-10
-653
-451
+427
+13
+825
+790
 -1
 -1
-13.1
+11.82
 1
 10
 1
@@ -205,8 +276,8 @@ GRAPHICS-WINDOW
 1
 -16
 16
--16
-16
+-32
+32
 1
 1
 1
@@ -248,10 +319,10 @@ NIL
 1
 
 SLIDER
-14
-89
-186
-122
+16
+109
+188
+142
 vision
 vision
 0
@@ -271,8 +342,8 @@ max-turn
 max-turn
 0
 360
-44.0
-1
+21.1
+0.1
 1
 NIL
 HORIZONTAL
@@ -285,8 +356,23 @@ SLIDER
 red-turtles
 red-turtles
 0
-100
-100.0
+300
+48.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+206
+213
+378
+246
+blue-turtles
+blue-turtles
+0
+300
+48.0
 1
 1
 NIL
@@ -294,18 +380,141 @@ HORIZONTAL
 
 SLIDER
 16
-246
+271
 188
-279
-blue-turtles
-blue-turtles
+304
+hit-radius-sum
+hit-radius-sum
 0
-100
-100.0
+1000
+83.0
 1
 1
 NIL
 HORIZONTAL
+
+SLIDER
+16
+72
+188
+105
+normal-speed
+normal-speed
+0
+0.1
+0.09
+0.001
+1
+NIL
+HORIZONTAL
+
+SLIDER
+203
+272
+380
+305
+hit-strength-sum
+hit-strength-sum
+0
+1000
+18.5
+0.1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+16
+304
+178
+337
+hit-radius-distr
+hit-radius-distr
+1
+1
+-1000
+
+SWITCH
+203
+305
+382
+338
+hit-strength-distr
+hit-strength-distr
+1
+1
+-1000
+
+SLIDER
+197
+71
+389
+104
+speed-towards-foe
+speed-towards-foe
+0
+0.1
+0.054
+0.001
+1
+NIL
+HORIZONTAL
+
+SLIDER
+198
+110
+370
+143
+separate-radius
+separate-radius
+0
+10
+3.8
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+44
+394
+216
+427
+separate-turn
+separate-turn
+0
+100
+27.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+45
+435
+217
+468
+align-turn
+align-turn
+0
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+16
+343
+237
+376
+engage-towards-battle
+engage-towards-battle
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?

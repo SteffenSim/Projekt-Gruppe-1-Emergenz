@@ -2,11 +2,8 @@ turtles-own [
   speed
   lp
   neighbours
-  spaeh
   alarm
-  nearestSpaeher
-  Spaeher
-
+  loudest-scout
 ]
 
 patches-own [
@@ -14,33 +11,34 @@ patches-own [
 ]
 
 globals [
-  blue-avg-x
-  blue-avg-y
-  red-avg-x
-  red-avg-y
   BACKGROUND-CLR
+  scouts-speed-factor
+  blue-scouts
+  red-scouts
 ]
 
 to setup
   clear-all
+  set scouts-speed-factor 6
+  set BACKGROUND-CLR [80 170 70]
   ;; random-seed 2021
   set-default-shape turtles "person"
-  create-turtles turtles-per-fraction [
+  create-turtles turtles-per-faction [
     setup-turtle red
   ]
-  create-turtles turtles-per-fraction [
+  create-turtles turtles-per-faction [
     setup-turtle blue
   ]
   set-default-shape turtles "wolf"
-  create-turtles spaeher-per-faction [
+  create-turtles scouts-per-faction [
     setup-turtle red
   ]
-  create-turtles spaeher-per-faction [
+  create-turtles scouts-per-faction [
     setup-turtle blue
   ]
   ask patches[
     set corpses 0
-    set pcolor white
+    set pcolor 55
   ]
   reset-ticks
 end
@@ -56,7 +54,6 @@ to setup-turtle [fraction]
   set color fraction
   set size 1
   set speed 0
-  set spaeh 0
   set alarm 0
   ;set speed random-float 0.1
 end
@@ -77,10 +74,9 @@ to go
     print "All dead"
     stop
   ]
-  set blue-avg-x mean [xcor] of blue-s
-  set blue-avg-y mean [ycor] of blue-s
-  set red-avg-x mean [xcor] of red-s
-  set red-avg-y mean [ycor] of red-s
+
+  set red-scouts turtles with [color = red and shape = "wolf" and lp > 0]
+  set blue-scouts turtles with [color = blue and shape = "wolf" and lp > 0]
   ask turtles [ go-turtles ]
   tick
 end
@@ -91,151 +87,131 @@ to go-turtles
   let dist 999999
   let col 0
   let ala 0
+  let is-scout -1
   if any? neighbours [
     set nearest min-one-of neighbours [distance myself]
     set dist distance nearest
     set col [color] of nearest
-    set ala [alarm] of nearest
     ifelse [shape] of nearest = "person" [
-      set spaeh 0
+      set is-scout 0
     ]
     [
-      set spaeh 1
+      set is-scout 1
     ]
   ]
-  if any? Spaeher [
-    set nearestSpaeher max-one-of Spaeher [alarm]
+  let loudest-alarm 0
+  let scouts nobody
+  ifelse color = red
+  [ set scouts red-scouts ]
+  [ set scouts blue-scouts ]
+  if any? scouts [
+    set loudest-scout max-one-of scouts [alarm]
+    if [lp] of loudest-scout > 0 [
+      set loudest-alarm [alarm] of loudest-scout
+    ]
   ]
 
-  (
-    ifelse shape = "person"  [
-      ;DAS hier machen die Soldaten
-      ifelse
+  ifelse shape = "person"  [
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;Soldaten
+
+    if any? neighbours and ((color = blue and formation-blue) or (color = red and formation-red)) [
+        (ifelse [xcor] of min-one-of neighbours [xcor]> xcor
+        [
+          set heading 90
+        ]
+        [xcor] of max-one-of neighbours [xcor]  < xcor
+        [
+          set heading 270
+        ]
+        [ycor] of min-one-of neighbours [ycor] > ycor
+        [
+          set heading 0
+        ]
+        [ycor] of max-one-of neighbours [ycor] < ycor
+        [
+          set heading 180
+        ])
+      fd max-speed * 0.8
+      ]
+    ( ifelse
+
       ; ATTACK: if foe close enough, stand & attack
       dist < hit-radius and col != color [
-
         ask nearest [ be-hit hit-strength ]
-
       ]
+
+      ; SEPARATE: if anyone too close, move away
+      dist < separate-radius [
+        set heading subtract-headings towards nearest 180
+        wiggle
+        fd max-speed
+      ]
+
+      ; COHERE: Foes
+      col != 0 and dist > cohere-radius and col != color and is-scout = 0 [
+
+        set heading towards nearest
+        wiggle
+        fd max-speed
+      ]
+
+      loudest-alarm > 0 [
+        set heading towards loudest-scout
+        wiggle
+        fd max-speed
+      ]
+
+      ; COHERE: Friends
+      col != 0 and dist > cohere-radius and col = color and is-scout = 0 [
+        set heading towards nearest
+        wiggle
+        fd max-speed
+      ]
+
+      ; ELSE: random rumlaufen
       [
-        ifelse
+        wiggle
+        fd max-speed
+      ]
+    )
+  ]
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;Späher
+  [
+    ;Das hier machen die Späher
 
-        ; SEPARATE: if anyone too close, move away
-        dist < separate-radius [
-
-          set heading subtract-headings towards nearest 180
-          wiggle
-          fd max-speed
-
-
-        ]
+    ( ifelse alarm > 0
       [
-        ifelse  [alarm] of nearestSpaeher > 0
-        [
-          set heading towards nearestSpaeher
-
-
-            wiggle
-            fd max-speed
-
-          ]
-
-
-        [
-          ifelse alarm > 0 [
-              wiggle
-            fd max-speed
-
-
-
-          ]
-
-
-
-
-
-            [
-              ; COHERE: if any friend visible, go there
-              ; ENGAGE: if any foe visible, go there,
-
-              ifelse dist > cohere-radius [
-                ;ist das ein verbündeter Späher, wenn ja dann bewege dich nur random
-                ifelse col = color and spaeh = 1 [
-                  set heading towards nearest
-                  wiggle
-                  fd max-speed
-
-
-
-                ]
-                [
-
-                  set heading towards nearest
-                  wiggle
-                  fd max-speed
-
-
-                ]
-              ]
-              [
-                ; ALIGN: if any friend close enough, rotate along
-                ; PROGRESS: go towards foe avg position
-
-                wiggle
-                fd max-speed
-
-
-              ]
-            ]
-          ]
-        ]
+        set size alarm * 0.01 + 1
+        wiggle
+        fd max-speed * scouts-speed-factor * 0.1
+        set alarm alarm - 1
       ]
-    ]
-;;;;;;;;;;;;;;;;;;;;;;;;;;Späher
-    [
-      ;Das hier machen die Späher
 
-
-      ifelse alarm > 0
-        [
-          set size alarm + 1
-          wiggle
-          back max-speed
-          set alarm alarm - 1
-      ]
+      ;wenn ein gegner zu nahe ist, drehe dich um und schlage alarm ansonsten
+      col != color and col != 0 and is-scout = 0
       [
+        set heading subtract-headings towards nearest 180
+        ;set heading towards nearest
 
-
-        ;wenn ein gegner zu nahe ist, drehe dich um und schlage alarm ansonsten
-        ;SEPARATE: if anyone too close, move away
-        ifelse col != color and any? neighbours
-        [
-
-          set heading towards nearest
-
-          set alarm 1
-          set size alarm + 1
-          wiggle
-          back max-speed
-
-        ]
-
-
-
-        [
-
-          ; PROGRESS: go towards foe avg position
-
-          set size alarm + 1
-          wiggle
-          fd max-speed
-          set alarm 0
-        ]
+        set alarm 100
+        set size alarm * 0.01 + 1
+        wiggle
+        fd max-speed * scouts-speed-factor
       ]
-
-    ]
-  )
+      [ ; Else Block
+;        ifelse random 1000 < 2 [
+;          set alarm 2
+;        ] [
+;        ]
+        set alarm 0
+        set size alarm * 0.01 + 1
+        wiggle
+        fd max-speed * scouts-speed-factor
+      ]
+    )
+  ]
 end
+
 
 to wiggle  ;; turtle procedure
   rt random wiggle-amount
@@ -243,32 +219,31 @@ to wiggle  ;; turtle procedure
   if not can-move? 2 [ rt 180 ]
 end
 
+
 to be-hit [strength]
-  set lp lp - strength
-  if lp <= 0 [
+  ;set lp lp - strength
+
+  if strength >= (random 1000) [
     set corpses corpses + 1
     recolor-patch
     die
+    set lp 0
   ]
 end
 
 to recolor-patch ; patch procedure
   ifelse corpses = 0 [
-    set pcolor white
+    set pcolor BACKGROUND-CLR
   ] [
-    set pcolor 40 - min list (corpses * 0.2) 10
+    set pcolor (list (item 0 BACKGROUND-CLR + corpses * 5) (item 1 BACKGROUND-CLR - corpses * 5) (item 2 BACKGROUND-CLR))
   ]
-end
-
-to step-away [agent]
-
 end
 
 to find-friends-foes  ;; turtle procedure
   let _mycolor color
 
   set neighbours other turtles in-radius vision
-  set Spaeher other turtles with [color = _mycolor and shape = "wolf"]
+  ;set scouts other turtles with [color = _mycolor and shape = "wolf" and lp > 0]
   ;set friends neighbours with [color = _mycolor]
   ;set foes neighbours with [color != _mycolor]
 end
@@ -282,11 +257,11 @@ end
 GRAPHICS-WINDOW
 210
 10
-647
-448
+718
+791
 -1
 -1
-13.0
+15.152
 1
 10
 1
@@ -298,8 +273,8 @@ GRAPHICS-WINDOW
 1
 -16
 16
--16
-16
+-25
+25
 1
 1
 1
@@ -349,7 +324,7 @@ spawn-separation
 spawn-separation
 0
 1.0
-0.68
+0.73
 0.01
 1
 NIL
@@ -370,11 +345,11 @@ SLIDER
 106
 203
 139
-turtles-per-fraction
-turtles-per-fraction
+turtles-per-faction
+turtles-per-faction
 0
 300
-130.0
+111.0
 1
 1
 NIL
@@ -392,123 +367,145 @@ Runtime _____________________
 
 SLIDER
 11
-253
+298
 200
-286
+331
 max-speed
 max-speed
 0
 0.1
-0.03
+0.044
 0.001
 1
 NIL
 HORIZONTAL
 
 SLIDER
-6
-460
-197
-493
+10
+496
+201
+529
 hit-strength
 hit-strength
 0
-2
-0.091
-0.001
+1000
+1000.0
+1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-5
-502
-198
-535
+11
+429
+203
+462
 hit-radius
 hit-radius
-0
+separate-radius
 20
-2.5
+2.48
 0.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-12
-294
-184
-327
+11
+360
+203
+393
 separate-radius
 separate-radius
 0
 5
-1.15
+1.62
 0.01
 1
 NIL
 HORIZONTAL
 
 SLIDER
-9
-396
-181
-429
+11
+255
+201
+288
 vision
 vision
 0
 20
-5.2
+6.6
 0.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-12
-333
-184
-366
+11
+394
+203
+427
 cohere-radius
 cohere-radius
 0
 5
-1.7
+2.6
 0.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-6
-561
-178
-594
+10
+531
+201
+564
 wiggle-amount
 wiggle-amount
 0
 40
-5.6
+15.8
 0.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-13
+10
 186
-185
+204
 219
-spaeher-per-faction
-spaeher-per-faction
+scouts-per-faction
+scouts-per-faction
 0
 20
-6.0
+1.0
 1
 1
 NIL
 HORIZONTAL
+
+SWITCH
+17
+611
+179
+644
+formation-red
+formation-red
+0
+1
+-1000
+
+SWITCH
+17
+649
+179
+682
+formation-blue
+formation-blue
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?

@@ -498,7 +498,7 @@ spawn-separation
 spawn-separation
 0
 1.0
-0.5
+0.57
 0.01
 1
 NIL
@@ -523,7 +523,7 @@ turtles-per-faction
 turtles-per-faction
 0
 300
-120.0
+113.0
 1
 1
 NIL
@@ -548,7 +548,7 @@ max-speed
 max-speed
 0
 0.1
-0.08
+0.095
 0.001
 1
 NIL
@@ -563,7 +563,7 @@ kill-prob
 kill-prob
 0
 100
-50.0
+47.0
 0.1
 1
 NIL
@@ -578,7 +578,7 @@ hit-radius
 hit-radius
 separate-radius
 20
-3.0
+2.48
 0.1
 1
 NIL
@@ -593,7 +593,7 @@ separate-radius
 separate-radius
 0
 5
-1.2
+1.04
 0.01
 1
 NIL
@@ -623,7 +623,7 @@ cohere-max-radius
 cohere-max-radius
 0
 vision
-6.0
+3.5
 0.1
 1
 NIL
@@ -653,7 +653,7 @@ scouts-per-faction
 scouts-per-faction
 0
 20
-8.0
+7.0
 1
 1
 NIL
@@ -690,7 +690,7 @@ formation-impact
 formation-impact
 0
 1.0
-0.95
+0.99
 0.01
 1
 NIL
@@ -731,7 +731,7 @@ true
 false
 "" ""
 PENS
-"X" 1.0 0 -7500403 true "" "plot fix-emergence [xcor] of turtles min-pxcor max-pxcor"
+"X" 1.0 0 -16777216 true "" "plot fix-emergence [xcor] of turtles min-pxcor max-pxcor"
 "pen-1" 1.0 0 -13345367 true "" "plot fix-emergence [xcor] of turtles with [color = blue] min-pxcor max-pxcor"
 "pen-2" 1.0 0 -2674135 true "" "plot fix-emergence [xcor] of turtles with [color = red] min-pxcor max-pxcor"
 
@@ -762,7 +762,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -7500403 true "" "plot fix-emergence [ycor] of turtles min-pycor max-pycor"
+"default" 1.0 0 -16777216 true "" "plot fix-emergence [ycor] of turtles min-pycor max-pycor"
 "pen-1" 1.0 0 -13345367 true "" "plot fix-emergence [ycor] of turtles with [color = blue] min [ycor] of turtles with [color = blue] max-pycor"
 "pen-2" 1.0 0 -2674135 true "" "plot fix-emergence [ycor] of turtles with [color = red] min-pycor max [ycor] of turtles with [color = red]"
 
@@ -784,7 +784,7 @@ false
 PENS
 "defaultre" 1.0 0 -2674135 true "" "plot fix-emergence [heading] of turtles with [color = red] 0 360"
 "pen-1" 1.0 0 -14070903 true "" "plot fix-emergence [heading] of turtles with [color = blue] 0 360"
-"pen-2" 1.0 0 -7500403 true "" "plot fix-emergence [heading] of turtles 0 360"
+"pen-2" 1.0 0 -16777216 true "" "plot fix-emergence [heading] of turtles 0 360"
 
 TEXTBOX
 12
@@ -877,7 +877,7 @@ PLOT
 493
 1717
 613
-Emergence - neighbours
+Emergence - neighbour count (vision radius)
 NIL
 NIL
 0.0
@@ -885,11 +885,11 @@ NIL
 0.0
 1.0
 true
-true
+false
 "" ""
 PENS
-"Number of neighbors" 1.0 0 -13840069 true "" "plot fix-emergence [neighbour-count] of turtles 0 100"
-"Distance to nearest" 1.0 0 -4699768 true "" "plot fix-emergence [dist] of turtles 0 vision"
+"neighbours" 1.0 0 -13840069 true "" "plot fix-emergence [neighbour-count] of turtles 0 100"
+"nearest" 1.0 0 -4699768 true "" "plot fix-emergence [dist] of turtles 0 vision"
 
 MONITOR
 12
@@ -976,7 +976,7 @@ PENS
 "Attack" 1.0 0 -2674135 true "" "plot c-attack / count turtles"
 "Separate" 1.0 0 -13791810 true "" "plot c-separate / count turtles"
 "Cohere (foes)" 1.0 0 -16710398 true "" "plot c-cohere-foes / count turtles"
-"Move tw scouts" 1.0 0 -612749 true "" "plot c-scout / count turtles"
+"Move tw scouts" 1.0 0 -1184463 true "" "plot c-scout / count turtles"
 "Cohere (friends)" 1.0 0 -11085214 true "" "plot c-cohere-friends / count turtles"
 "Random" 1.0 0 -7500403 true "" "plot c-random / count turtles"
 
@@ -1022,7 +1022,7 @@ cohere-min-radius
 cohere-min-radius
 separate-radius
 cohere-max-radius
-2.0
+1.54
 0.1
 1
 NIL
@@ -1033,7 +1033,7 @@ PLOT
 732
 1717
 852
-Emergence - Deaths
+Emergence - Corpses
 NIL
 NIL
 0.0
@@ -1041,12 +1041,10 @@ NIL
 0.0
 1.0
 true
-true
+false
 "" ""
 PENS
-"x-Corpses" 1.0 0 -13840069 true "" "plot fix-emergence sum-coprses-by-xcor 0 sum [corpses] of patches"
-"y-Corpses" 1.0 0 -10141563 true "" "plot fix-emergence sum-coprses-by-ycor 0 sum [corpses] of patches"
-"Death-times" 1.0 0 -16645628 true "" "plot fix-emergence death-times 0 ticks"
+"x-corpses" 1.0 0 -2674135 true "" "plot fix-emergence sum-coprses-by-xcor 0 sum [corpses] of patches"
 
 @#$#@#$#@
 ## WHAT IS IT?
